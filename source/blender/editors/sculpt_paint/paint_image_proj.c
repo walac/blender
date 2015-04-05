@@ -1964,7 +1964,7 @@ static float angle_2d_clockwise(const float p1[2], const float p2[2], const floa
 	v1[0] = p1[0] - p2[0];    v1[1] = p1[1] - p2[1];
 	v2[0] = p3[0] - p2[0];    v2[1] = p3[1] - p2[1];
 
-	return -atan2(v1[0] * v2[1] - v1[1] * v2[0], v1[0] * v2[0] + v1[1] * v2[1]);
+	return -atan2f(v1[0] * v2[1] - v1[1] * v2[0], v1[0] * v2[0] + v1[1] * v2[1]);
 }
 #endif
 
@@ -5487,7 +5487,7 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 			ntreeUpdateTree(CTX_data_main(C), ntree);
 		}
 		else {
-			MTex *mtex = add_mtex_id(&ma->id, -1);
+			MTex *mtex = BKE_texture_mtex_add_id(&ma->id, -1);
 
 			/* successful creation of mtex layer, now create set */
 			if (mtex) {
@@ -5506,7 +5506,7 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 					}
 				}
 
-				mtex->tex = add_texture(bmain, DATA_(layer_type_items[type_id].name));
+				mtex->tex = BKE_texture_add(bmain, DATA_(layer_type_items[type_id].name));
 				mtex->mapto = type;
 
 				if (mtex->tex) {

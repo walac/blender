@@ -413,8 +413,8 @@ static void rna_SpaceView3D_lock_camera_and_layers_set(PointerRNA *ptr, int valu
 		/* seek for layact */
 		bit = 0;
 		while (bit < 32) {
-			if (v3d->lay & (1 << bit)) {
-				v3d->layact = 1 << bit;
+			if (v3d->lay & (1u << bit)) {
+				v3d->layact = (1u << bit);
 				break;
 			}
 			bit++;
@@ -493,8 +493,11 @@ static void rna_SpaceView3D_matcap_enable(Main *UNUSED(bmain), Scene *UNUSED(sce
 {
 	View3D *v3d = (View3D *)(ptr->data);
 	
-	if (v3d->matcap_icon == 0)
+	if (v3d->matcap_icon < ICON_MATCAP_01 ||
+	    v3d->matcap_icon > ICON_MATCAP_24)
+	{
 		v3d->matcap_icon = ICON_MATCAP_01;
+	}
 }
 
 static void rna_SpaceView3D_pivot_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
@@ -1114,12 +1117,12 @@ static void rna_SpaceDopeSheetEditor_action_update(Main *UNUSED(bmain), Scene *s
 		
 		if (saction->mode == SACTCONT_ACTION) {
 			/* TODO: context selector could help decide this with more control? */
-			adt = BKE_id_add_animdata(&obact->id); /* this only adds if non-existent */
+			adt = BKE_animdata_add_id(&obact->id); /* this only adds if non-existent */
 		}
 		else if (saction->mode == SACTCONT_SHAPEKEY) {
 			Key *key = BKE_key_from_object(obact);
 			if (key)
-				adt = BKE_id_add_animdata(&key->id);  /* this only adds if non-existent */
+				adt = BKE_animdata_add_id(&key->id);  /* this only adds if non-existent */
 		}
 		
 		/* set action */

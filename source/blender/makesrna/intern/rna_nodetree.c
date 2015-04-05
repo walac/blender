@@ -1549,7 +1549,7 @@ static void rna_Node_name_set(PointerRNA *ptr, const char *value)
 	nodeUniqueName(ntree, node);
 	
 	/* fix all the animation data which may link to this */
-	BKE_all_animdata_fix_paths_rename(NULL, "nodes", oldname, node->name);
+	BKE_animdata_fix_paths_rename_all(NULL, "nodes", oldname, node->name);
 }
 
 static bNodeSocket *rna_Node_inputs_new(ID *id, bNode *node, ReportList *reports, const char *type, const char *name, const char *identifier)
@@ -2701,7 +2701,7 @@ static void rna_Image_Node_update_id(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 static void rna_Mapping_Node_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	bNode *node = ptr->data;
-	init_tex_mapping(node->storage);
+	BKE_texture_mapping_init(node->storage);
 	rna_Node_update(bmain, scene, ptr);
 }
 
