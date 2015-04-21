@@ -125,6 +125,12 @@ base class --- :class:`PyObjectPlus`
 
       :type: list
 
+   .. attribute:: pre_cull
+
+      A list of callables to be run before the culling step step.
+
+      :type: list
+
    .. attribute:: gravity
 
       The scene gravity using the world x, y and z axis.
