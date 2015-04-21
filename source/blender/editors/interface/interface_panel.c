@@ -1187,8 +1187,12 @@ static void ui_handle_panel_header(const bContext *C, uiBlock *block, int mx, in
 			ED_region_tag_redraw(ar);
 		}
 		else {  /* collapse */
-			if (ctrl)
+			if (ctrl) {
 				panels_collapse_all(sa, ar, block->panel);
+
+				/* reset the view - we don't want to display a view without content */
+				UI_view2d_offset(&ar->v2d, 0.0f, 1.0f);
+			}
 
 			if (block->panel->flag & PNL_CLOSED) {
 				block->panel->flag &= ~PNL_CLOSED;
@@ -1865,7 +1869,7 @@ static int ui_handler_panel(bContext *C, const wmEvent *event, void *userdata)
 	uiHandlePanelData *data = panel->activedata;
 
 	/* verify if we can stop */
-	if (event->type == LEFTMOUSE && event->val == KM_RELEASE) {
+	if (event->type == LEFTMOUSE && event->val != KM_PRESS) {
 		ScrArea *sa = CTX_wm_area(C);
 		ARegion *ar = CTX_wm_region(C);
 		int align = panel_aligned(sa, ar);

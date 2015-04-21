@@ -117,7 +117,7 @@ void GPU_render_text(MTFace *tface, int mode,
 		
 		/* color has been set */
 		if (tface->mode & TF_OBCOL)
-			col= NULL;
+			col = NULL;
 		else if (!col)
 			glColor3f(1.0f, 1.0f, 1.0f);
 
@@ -1040,11 +1040,11 @@ static bool GPU_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x,
 	return false;
 }
 
-void GPU_paint_update_image(Image *ima, int x, int y, int w, int h)
+void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, int h)
 {
 	ImBuf *ibuf;
 	
-	ibuf = BKE_image_acquire_ibuf(ima, NULL, NULL);
+	ibuf = BKE_image_acquire_ibuf(ima, iuser, NULL);
 	
 	if (ima->repbind || (GPU_get_mipmap() && !GTS.gpu_mipmap) || !ima->bindcode || !ibuf ||
 		(w == 0) || (h == 0))
