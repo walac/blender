@@ -34,11 +34,8 @@
 
 struct bContext;
 struct ID;
-struct Scene;
 struct PreviewImage;
 struct PointerRNA;
-
-enum eIconSizes;
 
 typedef struct IconFile {
 	struct IconFile *next, *prev;
@@ -48,13 +45,11 @@ typedef struct IconFile {
 
 #define ICON_DEFAULT_HEIGHT 16
 #define ICON_DEFAULT_WIDTH  16
-#define PREVIEW_DEFAULT_HEIGHT 128
 
 #define ICON_DEFAULT_HEIGHT_SCALE ((int)(UI_UNIT_Y * 0.8f))
 #define ICON_DEFAULT_WIDTH_SCALE  ((int)(UI_UNIT_X * 0.8f))
 
-#define ICON_RENDER_DEFAULT_HEIGHT 32
-#define PREVIEW_RENDER_DEFAULT_HEIGHT 128  /* Warning, also linked to thumbnail code, shal not be changed. */
+#define PREVIEW_DEFAULT_HEIGHT 96
 
 /*
  * Resizable Icons for Blender
@@ -65,7 +60,6 @@ int UI_icon_get_height(int icon_id);
 
 void UI_id_icon_render(
         const struct bContext *C, struct Scene *scene, struct ID *id, const bool big, const bool use_job);
-int UI_preview_render_size(enum eIconSizes size);
 
 void UI_icon_draw(float x, float y, int icon_id);
 void UI_icon_draw_preview(float x, float y, int icon_id);
@@ -82,10 +76,6 @@ struct ListBase *UI_iconfile_list(void);
 int UI_iconfile_get_index(const char *filename);
 
 struct PreviewImage *UI_icon_to_preview(int icon_id);
-
-#if 0
-struct ImBuf *UI_icon_to_imbuf(int icon_id);
-#endif
 
 int UI_rnaptr_icon_get(struct bContext *C, struct PointerRNA *ptr, int rnaicon, const bool big);
 
