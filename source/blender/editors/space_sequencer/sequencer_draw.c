@@ -63,6 +63,7 @@
 #include "ED_markers.h"
 #include "ED_mask.h"
 #include "ED_sequencer.h"
+#include "ED_screen.h"
 #include "ED_space_api.h"
 
 #include "UI_interface.h"
@@ -425,12 +426,12 @@ static void draw_seq_handle(View2D *v2d, Sequence *seq, const float handsize_cla
 		size_t numstr_len;
 
 		if (direction == SEQ_LEFTHANDLE) {
-			numstr_len = BLI_snprintf(numstr, sizeof(numstr), "%d", seq->startdisp);
+			numstr_len = BLI_snprintf_rlen(numstr, sizeof(numstr), "%d", seq->startdisp);
 			x1 = rx1;
 			y1 -= 0.45f;
 		}
 		else {
-			numstr_len = BLI_snprintf(numstr, sizeof(numstr), "%d", seq->enddisp - 1);
+			numstr_len = BLI_snprintf_rlen(numstr, sizeof(numstr), "%d", seq->enddisp - 1);
 			x1 = x2 - handsize_clamped * 0.75f;
 			y1 = y2 + 0.05f;
 		}
@@ -1068,6 +1069,7 @@ void draw_image_seq(const bContext *C, Scene *scene, ARegion *ar, SpaceSeq *sseq
 	bool glsl_used = false;
 	const bool draw_gpencil = ((sseq->flag & SEQ_SHOW_GPENCIL) && sseq->gpd);
 	const char *names[2] = {STEREO_LEFT_NAME, STEREO_RIGHT_NAME};
+	bool draw_metadata = false;
 
 	if (G.is_rendering == false && (scene->r.seq_flag & R_SEQ_GL_PREV) == 0) {
 		/* stop all running jobs, except screen one. currently previews frustrate Render
@@ -1303,10 +1305,12 @@ void draw_image_seq(const bContext *C, Scene *scene, ARegion *ar, SpaceSeq *sseq
 		}
 	}
 	else if (draw_backdrop) {
-		float aspect = BLI_rcti_size_x(&ar->winrct) / (float)BLI_rcti_size_y(&ar->winrct);	
+		float aspect;
 		float image_aspect = viewrect[0] / viewrect[1];
 		float imagex, imagey;
-		
+
+		aspect = BLI_rcti_size_x(&ar->winrct) / (float)BLI_rcti_size_y(&ar->winrct);
+
 		if (aspect >= image_aspect) {
 			imagex = image_aspect / aspect;
 			imagey = 1.0f;
@@ -1315,28 +1319,22 @@ void draw_image_seq(const bContext *C, Scene *scene, ARegion *ar, SpaceSeq *sseq
 			imagex = 1.0f;
 			imagey = aspect / image_aspect;
 		}
-		
+
 		glTexCoord2f(0.0f, 0.0f); glVertex2f(-imagex, -imagey);
 		glTexCoord2f(0.0f, 1.0f); glVertex2f(-imagex, imagey);
 		glTexCoord2f(1.0f, 1.0f); glVertex2f(imagex, imagey);
 		glTexCoord2f(1.0f, 0.0f); glVertex2f(imagex, -imagey);
 	}
 	else {
+		draw_metadata = ((sseq->flag & SEQ_SHOW_METADATA) != 0);
+
 		glTexCoord2f(0.0f, 0.0f); glVertex2f(v2d->tot.xmin, v2d->tot.ymin);
 		glTexCoord2f(0.0f, 1.0f); glVertex2f(v2d->tot.xmin, v2d->tot.ymax);
 		glTexCoord2f(1.0f, 1.0f); glVertex2f(v2d->tot.xmax, v2d->tot.ymax);
 		glTexCoord2f(1.0f, 0.0f); glVertex2f(v2d->tot.xmax, v2d->tot.ymin);
 	}
 	glEnd();
-	
-	if (draw_backdrop) {
-		glPopMatrix();
-		glMatrixMode(GL_PROJECTION);
-		glPopMatrix();
-		glMatrixMode(GL_MODELVIEW);
-		
-	}
-	
+
 	glBindTexture(GL_TEXTURE_2D, last_texid);
 	glDisable(GL_TEXTURE_2D);
 	if (sseq->mainb == SEQ_DRAW_IMG_IMBUF && sseq->flag & SEQ_USE_ALPHA)
@@ -1352,7 +1350,15 @@ void draw_image_seq(const bContext *C, Scene *scene, ARegion *ar, SpaceSeq *sseq
 	if (!scope)
 		IMB_freeImBuf(ibuf);
 
+	if (draw_metadata) {
+		ED_region_image_metadata_draw(0.0, 0.0, ibuf, v2d->tot, 1.0, 1.0);
+	}
+
 	if (draw_backdrop) {
+		glPopMatrix();
+		glMatrixMode(GL_PROJECTION);
+		glPopMatrix();
+		glMatrixMode(GL_MODELVIEW);
 		return;
 	}
 

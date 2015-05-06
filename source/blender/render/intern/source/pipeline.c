@@ -380,6 +380,8 @@ void RE_ReleaseResultImageViews(Render *re, RenderResult *rr)
 }
 
 /* fill provided result struct with what's currently active or done */
+/* this RenderResult struct is the only exception to the rule of a RenderResult */
+/* always having at least one RenderView */
 void RE_AcquireResultImage(Render *re, RenderResult *rr, const int view_id)
 {
 	memset(rr, 0, sizeof(RenderResult));
@@ -395,18 +397,16 @@ void RE_AcquireResultImage(Render *re, RenderResult *rr, const int view_id)
 			rr->recty = re->result->recty;
 			
 			/* actview view */
-			rv = BLI_findlink(&re->result->views, view_id);
-			if (rv == NULL)
-				rv = (RenderView *)re->result->views.first;
+			rv = RE_RenderViewGetById(re->result, view_id);
 
-			rr->rectf =  rv ? rv->rectf  : NULL;
-			rr->rectz =  rv ? rv->rectz  : NULL;
-			rr->rect32 = rv ? rv->rect32 : NULL;
+			rr->rectf = rv->rectf;
+			rr->rectz = rv->rectz;
+			rr->rect32 = rv->rect32;
 
 			/* active layer */
 			rl = render_get_active_layer(re, re->result);
 
-			if (rl && rv) {
+			if (rl) {
 				if (rv->rectf == NULL)
 					rr->rectf = RE_RenderLayerGetPass(rl, SCE_PASS_COMBINED, rv->name);
 
@@ -414,7 +414,7 @@ void RE_AcquireResultImage(Render *re, RenderResult *rr, const int view_id)
 					rr->rectz = RE_RenderLayerGetPass(rl, SCE_PASS_Z, rv->name);
 			}
 
-			rr->have_combined = rv ? (rv->rectf != NULL) : false;
+			rr->have_combined = (rv->rectf != NULL);
 			rr->layers = re->result->layers;
 			rr->views = re->result->views;
 
@@ -436,9 +436,9 @@ void RE_ResultGet32(Render *re, unsigned int *rect)
 	RenderResult rres;
 	const size_t view_id = BKE_scene_multiview_view_id_get(&re->r, re->viewname);
 
-	RE_AcquireResultImage(re, &rres, view_id);
-	render_result_rect_get_pixels(&rres, rect, re->rectx, re->recty, &re->scene->view_settings, &re->scene->display_settings, 0);
-	RE_ReleaseResultImage(re);
+	RE_AcquireResultImageViews(re, &rres);
+	render_result_rect_get_pixels(&rres, rect, re->rectx, re->recty, &re->scene->view_settings, &re->scene->display_settings, view_id);
+	RE_ReleaseResultImageViews(re, &rres);
 }
 
 /* caller is responsible for allocating rect in correct size! */
@@ -747,6 +747,7 @@ void RE_InitState(Render *re, Render *source, RenderData *rd,
 		re->result = MEM_callocN(sizeof(RenderResult), "new render result");
 		re->result->rectx = re->rectx;
 		re->result->recty = re->recty;
+		render_result_view_new(re->result, "new temporary view");
 	}
 	
 	if (re->r.scemode & R_VIEWPORT_PREVIEW)
@@ -769,11 +770,14 @@ void RE_InitState(Render *re, Render *source, RenderData *rd,
 static void render_result_rescale(Render *re)
 {
 	RenderResult *result = re->result;
+	RenderView *rv;
 	int x, y;
 	float scale_x, scale_y;
 	float *src_rectf;
 
-	src_rectf = result->rectf;
+	rv = RE_RenderViewGetById(result, 0);
+	src_rectf = rv->rectf;
+
 	if (src_rectf == NULL) {
 		RenderLayer *rl = render_get_active_layer(re, re->result);
 		if (rl != NULL) {
@@ -791,7 +795,7 @@ static void render_result_rescale(Render *re)
 		                               "");
 
 		if (re->result != NULL) {
-			dst_rectf = re->result->rectf;
+			dst_rectf = RE_RenderViewGetById(re->result, 0)->rectf;
 			if (dst_rectf == NULL) {
 				RenderLayer *rl;
 				rl = render_get_active_layer(re, re->result);
@@ -2233,7 +2237,7 @@ static void do_merge_fullsample(Render *re, bNodeTree *ntree)
 			}
 		}
 
-		for (nr = 0, rv = re->result->views.first; rv; rv = rv->next, nr++) {
+		for (nr = 0, rv = rectfs->first; rv; rv = rv->next, nr++) {
 			rectf = rv->rectf;
 
 			/* ensure we get either composited result or the active layer */
@@ -2286,7 +2290,7 @@ static void do_merge_fullsample(Render *re, bNodeTree *ntree)
 
 		/* store the final result */
 		BLI_rw_mutex_lock(&re->resultmutex, THREAD_LOCK_WRITE);
-		rv = BLI_findlink(&re->result->views, nr);
+		rv = RE_RenderViewGetById(re->result, nr);
 		if (rv->rectf)
 			MEM_freeN(rv->rectf);
 		rv->rectf = rectf;
@@ -2484,7 +2488,7 @@ static void renderresult_stampinfo(Render *re)
 	for (rv = re->result->views.first;rv;rv = rv->next, nr++) {
 		RE_SetActiveRenderView(re, rv->name);
 		RE_AcquireResultImage(re, &rres, nr);
-		BKE_image_stamp_buf(re->scene, RE_GetCamera(re), (unsigned char *)rv->rect32, rv->rectf, rres.rectx, rres.recty, 4);
+		BKE_image_stamp_buf(re->scene, RE_GetCamera(re), (unsigned char *)rres.rect32, rres.rectf, rres.rectx, rres.recty, 4);
 		RE_ReleaseResultImage(re);
 	}
 }
@@ -2570,7 +2574,7 @@ static void do_render_seq(Render *re)
 	BLI_rw_mutex_unlock(&re->resultmutex);
 
 	for (view_id = 0; view_id < tot_views; view_id++) {
-		RenderView *rv = BLI_findlink(&rr->views, view_id);
+		RenderView *rv = RE_RenderViewGetById(rr, view_id);
 		BLI_rw_mutex_lock(&re->resultmutex, THREAD_LOCK_WRITE);
 
 		if (ibuf_arr[view_id]) {
@@ -2615,6 +2619,8 @@ static void do_render_seq(Render *re)
 /* main loop: doing sequence + fields + blur + 3d render + compositing */
 static void do_render_all_options(Render *re)
 {
+	Object *camera;
+
 	re->current_scene_update(re->suh, re->scene);
 
 	BKE_scene_camera_switch_update(re->scene);
@@ -2648,6 +2654,10 @@ static void do_render_all_options(Render *re)
 	
 	re->stats_draw(re->sdh, &re->i);
 	
+	/* save render result stamp if needed */
+	camera = RE_GetCamera(re);
+	BKE_render_result_stamp_info(re->scene, camera, re->result);
+
 	/* stamp image info here */
 	if ((re->r.stamp & R_STAMP_ALL) && (re->r.stamp & R_STAMP_DRAW)) {
 		renderresult_stampinfo(re);
@@ -3027,16 +3037,11 @@ void RE_BlenderFrame(Render *re, Main *bmain, Scene *scene, SceneRenderLayer *sr
 	scene->r.cfra = frame;
 	
 	if (render_initialize_from_main(re, &scene->r, bmain, scene, srl, camera_override, lay_override, 0, 0)) {
-		Object *camera;
 		MEM_reset_peak_memory();
 
 		BLI_callback_exec(re->main, (ID *)scene, BLI_CB_EVT_RENDER_PRE);
 
 		do_render_all_options(re);
-
-		/* save render result stamp if needed */
-		camera = RE_GetCamera(re);
-		BKE_render_result_stamp_info(scene, camera, re->result);
 
 		if (write_still && !G.is_break) {
 			if (BKE_imtype_is_movie(scene->r.im_format.imtype)) {
@@ -3116,10 +3121,11 @@ bool RE_WriteRenderViewsImage(ReportList *reports, RenderResult *rr, Scene *scen
 		BLI_strncpy(filepath, name, sizeof(filepath));
 
 		for (view_id = 0, rv = rr->views.first; rv; rv = rv->next, view_id++) {
-			BKE_scene_multiview_view_filepath_get(&scene->r, filepath, rv->name, name);
+			if (!is_mono) {
+				BKE_scene_multiview_view_filepath_get(&scene->r, filepath, rv->name, name);
+			}
 
 			if (rd->im_format.imtype == R_IMF_IMTYPE_MULTILAYER) {
-
 				RE_WriteRenderResult(reports, rr, name, &rd->im_format, false, rv->name);
 				printf("Saved: %s\n", name);
 			}
@@ -3472,7 +3478,6 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 	}
 	else {
 		for (nfra = sfra, scene->r.cfra = sfra; scene->r.cfra <= efra; scene->r.cfra++) {
-			Object *camera;
 			char name[FILE_MAX];
 			
 			/* only border now, todo: camera lens. (ton) */
@@ -3571,10 +3576,6 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 			do_render_all_options(re);
 			totrendered++;
 			
-			/* save render result stamp if needed */
-			camera = RE_GetCamera(re);
-			BKE_render_result_stamp_info(scene, camera, re->result);
-
 			if (re->test_break(re->tbh) == 0) {
 				if (!G.is_break)
 					if (!do_write_image_or_movie(re, bmain, scene, mh, totvideos, NULL))

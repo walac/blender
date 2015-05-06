@@ -883,12 +883,16 @@ Image *BKE_image_add_generated(Main *bmain, unsigned int width, unsigned int hei
 /* Create an image image from ibuf. The refcount of ibuf is increased,
  * caller should take care to drop its reference by calling
  * IMB_freeImBuf if needed. */
-Image *BKE_image_add_from_imbuf(ImBuf *ibuf)
+Image *BKE_image_add_from_imbuf(ImBuf *ibuf, const char *name)
 {
 	/* on save, type is changed to FILE in editsima.c */
 	Image *ima;
 
-	ima = image_alloc(G.main, BLI_path_basename(ibuf->name), IMA_SRC_FILE, IMA_TYPE_IMAGE);
+	if (name == NULL) {
+		name = BLI_path_basename(ibuf->name);
+	}
+
+	ima = image_alloc(G.main, name, IMA_SRC_FILE, IMA_TYPE_IMAGE);
 
 	if (ima) {
 		BLI_strncpy(ima->name, ibuf->name, FILE_MAX);
@@ -3522,6 +3526,7 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **lock_
 {
 	Render *re;
 	RenderResult rres;
+	RenderView *rv;
 	float *rectf, *rectz;
 	unsigned int *rect;
 	float dither;
@@ -3553,7 +3558,7 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **lock_
 	}
 	else if (ima->renders[ima->render_slot]) {
 		rres = *(ima->renders[ima->render_slot]);
-		rres.have_combined = RE_RenderViewGetRectf(&rres, actview) != NULL;
+		rres.have_combined = ((RenderView *)rres.views.first)->rectf != NULL;
 	}
 	else
 		memset(&rres, 0, sizeof(RenderResult));
@@ -3568,12 +3573,26 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **lock_
 	if (from_render) {
 		BLI_lock_thread(LOCK_VIEWER);
 		*lock_r = re;
+		rv = NULL;
+	}
+	else {
+		rv = BLI_findlink(&rres.views, actview);
+		if (rv == NULL)
+			rv = rres.views.first;
 	}
 
 	/* this gives active layer, composite or sequence result */
-	rect = (unsigned int *)rres.rect32;
-	rectf = rres.rectf;
-	rectz = rres.rectz;
+	if (rv == NULL) {
+		rect = (unsigned int *)rres.rect32;
+		rectf = rres.rectf;
+		rectz = rres.rectz;
+	}
+	else {
+		rect = (unsigned int *)rv->rect32;
+		rectf = rv->rectf;
+		rectz = rv->rectz;
+	}
+
 	dither = iuser->scene->r.dither_intensity;
 
 	/* combined layer gets added as first layer */
@@ -3604,6 +3623,15 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **lock_
 			if (rpass) {
 				channels = rpass->channels;
 				rectf = rpass->rect;
+
+				if (!rectf) {
+					/* Happens when Save Buffers is enabled.
+					 * Use display buffer stored in the render layer.
+					 */
+					rect = (unsigned int *) rl->display_buffer;
+					byte_buffer_in_display_space = true;
+				}
+
 				dither = 0.0f; /* don't dither passes */
 			}
 

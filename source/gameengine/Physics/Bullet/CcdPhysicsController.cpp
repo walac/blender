@@ -123,10 +123,8 @@ bool CleanPairCallback::processOverlap(btBroadphasePair &pair)
 		m_pairCache->cleanOverlappingPair(pair, m_dispatcher);
 		CcdPhysicsController *ctrl0 = (CcdPhysicsController*)(((btCollisionObject*)pair.m_pProxy0->m_clientObject)->getUserPointer());
 		CcdPhysicsController *ctrl1 = (CcdPhysicsController*)(((btCollisionObject*)pair.m_pProxy1->m_clientObject)->getUserPointer());
-		if (ctrl0 && ctrl1) {
-			ctrl0->GetRigidBody()->activate(true);
-			ctrl1->GetRigidBody()->activate(true);
-		}
+		ctrl0->GetCollisionObject()->activate(false);
+		ctrl1->GetCollisionObject()->activate(false);
 	}
 	return false;
 }
@@ -1097,6 +1095,10 @@ void		CcdPhysicsController::ResolveCombinedVelocities(float linvelX,float linvel
 
 void CcdPhysicsController::RefreshCollisions()
 {
+	// the object is in an inactive layer so it's useless to update it and can cause problems
+	if (!GetPhysicsEnvironment()->IsActiveCcdPhysicsController(this))
+		return;
+
 	btSoftRigidDynamicsWorld *dw = GetPhysicsEnvironment()->GetDynamicsWorld();
 	btBroadphaseProxy *proxy = m_object->getBroadphaseHandle();
 	btDispatcher *dispatcher = dw->getDispatcher();
@@ -1104,8 +1106,10 @@ void CcdPhysicsController::RefreshCollisions()
 
 	CleanPairCallback cleanPairs(proxy, pairCache, dispatcher);
 	pairCache->processAllOverlappingPairs(&cleanPairs, dispatcher);
+
 	// Forcibly recreate the physics object
-	GetPhysicsEnvironment()->UpdateCcdPhysicsController(this, m_cci.m_mass, m_cci.m_collisionFlags, m_cci.m_collisionFilterGroup, m_cci.m_collisionFilterMask);
+	btBroadphaseProxy* handle = m_object->getBroadphaseHandle();
+	GetPhysicsEnvironment()->UpdateCcdPhysicsController(this, GetMass(), m_object->getCollisionFlags(), handle->m_collisionFilterGroup, handle->m_collisionFilterMask);
 }
 
 void	CcdPhysicsController::SuspendDynamics(bool ghost)
@@ -1572,8 +1576,7 @@ void    CcdPhysicsController::AddCompoundChild(PHY_IPhysicsController* child)
 	const btCollisionShape* childShape = childBody->getCollisionShape();
 	if (!rootShape ||
 		!childShape ||
-		rootShape->getShapeType() != COMPOUND_SHAPE_PROXYTYPE ||
-		childShape->getShapeType() == COMPOUND_SHAPE_PROXYTYPE)
+		rootShape->getShapeType() != COMPOUND_SHAPE_PROXYTYPE)
 		return;
 	btCompoundShape* compoundShape = (btCompoundShape*)rootShape;
 	// compute relative transformation between parent and child
@@ -1623,7 +1626,7 @@ void    CcdPhysicsController::AddCompoundChild(PHY_IPhysicsController* child)
 	// must update the broadphase cache,
 	GetPhysicsEnvironment()->RefreshCcdPhysicsController(this);
 	// remove the children
-	GetPhysicsEnvironment()->DisableCcdPhysicsController(childCtrl);
+	GetPhysicsEnvironment()->RemoveCcdPhysicsController(childCtrl);
 }
 
 /* Reverse function of the above, it will remove a shape from a compound shape
@@ -1679,7 +1682,7 @@ void    CcdPhysicsController::RemoveCompoundChild(PHY_IPhysicsController* child)
 	// must update the broadphase cache,
 	GetPhysicsEnvironment()->RefreshCcdPhysicsController(this);
 	// reactivate the children
-	GetPhysicsEnvironment()->EnableCcdPhysicsController(childCtrl);
+	GetPhysicsEnvironment()->AddCcdPhysicsController(childCtrl);
 }
 
 PHY_IPhysicsController* CcdPhysicsController::GetReplica()
