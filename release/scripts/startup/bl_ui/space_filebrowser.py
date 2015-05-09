@@ -52,13 +52,15 @@ class FILEBROWSER_HT_header(Header):
 
         # can be None when save/reload with a file selector open
         if params:
+            is_lib_browser = params.use_library_browsing
+
             layout.prop(params, "display_type", expand=True, text="")
 
-            if params.display_type == 'FILE_IMGDISPLAY':
-                layout.prop(params, "thumbnail_size", text="")
+            layout.prop(params, "thumbnail_size", text="")
 
             layout.prop(params, "sort_method", expand=True, text="")
 
+            layout.prop(params, "recursion_level")
             layout.prop(params, "show_hidden", text="", icon='FILE_HIDDEN')
             layout.prop(params, "use_filter", text="", icon='FILTER')
 
@@ -81,8 +83,16 @@ class FILEBROWSER_HT_header(Header):
                 row.prop(params, "use_filter_sound", text="")
                 row.prop(params, "use_filter_text", text="")
 
+            if is_lib_browser:
+                row.prop(params, "use_filter_blendid", text="")
+                if (params.use_filter_blendid) :
+                    row.separator()
+                    row.prop(params, "filter_id", text="")
+
             row.separator()
             row.prop(params, "filter_search", text="", icon='VIEWZOOM')
+
+        layout.template_running_jobs()
 
 
 class FILEBROWSER_UL_dir(bpy.types.UIList):
