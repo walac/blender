@@ -338,7 +338,7 @@ void BKE_image_free(Image *ima)
 
 	image_free_packedfiles(ima);
 
-	BKE_icon_delete(&ima->id);
+	BKE_icon_id_delete(&ima->id);
 	ima->id.icon_id = 0;
 
 	BKE_previewimg_free(&ima->preview);
@@ -2398,6 +2398,7 @@ static void image_viewer_create_views(const RenderData *rd, Image *ima)
 void BKE_image_verify_viewer_views(const RenderData *rd, Image *ima, ImageUser *iuser)
 {
 	bool do_reset;
+	const bool is_multiview = (rd->scemode & R_MULTIVIEW) != 0;
 
 	BLI_lock_thread(LOCK_DRAW_IMAGE);
 
@@ -2413,7 +2414,9 @@ void BKE_image_verify_viewer_views(const RenderData *rd, Image *ima, ImageUser *
 
 	/* see if all scene render views are in the image view list */
 	do_reset = (BKE_scene_multiview_num_views_get(rd) != BLI_listbase_count(&ima->views));
-	if (!do_reset) {
+
+	/* multiview also needs to be sure all the views are synced */
+	if (is_multiview && !do_reset) {
 		SceneRenderView *srv;
 		ImageView *iv;
 
@@ -3001,7 +3004,7 @@ static void image_initialize_after_load(Image *ima, ImBuf *ibuf)
 {
 	/* preview is NULL when it has never been used as an icon before */
 	if (G.background == 0 && ima->preview == NULL)
-		BKE_icon_changed(BKE_icon_getid(&ima->id));
+		BKE_icon_changed(BKE_icon_id_ensure(&ima->id));
 
 	/* fields */
 	if (ima->flag & IMA_FIELDS) {
