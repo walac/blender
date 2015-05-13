@@ -74,7 +74,6 @@
 #include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_depsgraph.h"
-#include "BKE_icons.h"
 #include "BKE_idprop.h"
 #include "BKE_image.h"
 #include "BKE_library.h"
@@ -1261,8 +1260,6 @@ void WM_operator_properties_filesel(wmOperatorType *ot, int filter, short type, 
 	prop = RNA_def_boolean(ot->srna, "filter_collada", (filter & FILE_TYPE_COLLADA) != 0, "Filter COLLADA files", "");
 	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 	prop = RNA_def_boolean(ot->srna, "filter_folder", (filter & FILE_TYPE_FOLDER) != 0, "Filter folders", "");
-	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
-	prop = RNA_def_boolean(ot->srna, "filter_blenlib", (filter & FILE_TYPE_BLENDERLIB) != 0, "Filter Blender IDs", "");
 	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 
 	prop = RNA_def_int(ot->srna, "filemode", type, FILE_LOADLIB, FILE_SPECIAL,
@@ -2599,23 +2596,19 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 	BlendHandle *bh;
 	Library *lib;
 	PropertyRNA *prop;
-	char path[FILE_MAX_LIBEXTRA], dir[FILE_MAXDIR], libname[FILE_MAX], relname[FILE_MAX], *group, *name;
+	char name[FILE_MAX], dir[FILE_MAX], libname[FILE_MAX], group[BLO_GROUP_MAX];
 	int idcode, totfiles = 0;
 	short flag;
 
-	GSet *todo_libraries = NULL;
-
-	RNA_string_get(op->ptr, "filename", relname);
+	RNA_string_get(op->ptr, "filename", name);
 	RNA_string_get(op->ptr, "directory", dir);
 
-	BLI_join_dirfile(path, sizeof(path), dir, relname);
-
 	/* test if we have a valid data */
-	if (!BLO_library_path_explode(path, libname, &group, &name)) {
+	if (BLO_is_a_library(dir, libname, group) == 0) {
 		BKE_report(op->reports, RPT_ERROR, "Not a library");
 		return OPERATOR_CANCELLED;
 	}
-	else if (!group) {
+	else if (group[0] == 0) {
 		BKE_report(op->reports, RPT_ERROR, "Nothing indicated");
 		return OPERATOR_CANCELLED;
 	}
@@ -2629,13 +2622,13 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 	if (prop) {
 		totfiles = RNA_property_collection_length(op->ptr, prop);
 		if (totfiles == 0) {
-			if (!name) {
+			if (name[0] == '\0') {
 				BKE_report(op->reports, RPT_ERROR, "Nothing indicated");
 				return OPERATOR_CANCELLED;
 			}
 		}
 	}
-	else if (!name) {
+	else if (name[0] == '\0') {
 		BKE_report(op->reports, RPT_ERROR, "Nothing indicated");
 		return OPERATOR_CANCELLED;
 	}
@@ -2651,6 +2644,8 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 
 	/* from here down, no error returns */
 
+	idcode = BKE_idcode_from_name(group);
+
 	/* now we have or selected, or an indicated file */
 	if (RNA_boolean_get(op->ptr, "autoselect"))
 		BKE_scene_base_deselect_all(scene);
@@ -2665,7 +2660,6 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		flag &= ~FILE_GROUP_INSTANCE;
 	}
 
-	idcode = BKE_idcode_from_name(group);
 
 	/* tag everything, all untagged data can be made local
 	 * its also generally useful to know what is new
@@ -2689,34 +2683,10 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		BLO_library_append_named_part_ex(C, mainl, &bh, name, idcode, flag);
 	}
 	else {
-		todo_libraries = BLI_gset_new(BLI_ghashutil_strhash_p, BLI_ghashutil_strcmp, __func__);
-
 		RNA_BEGIN (op->ptr, itemptr, "files")
 		{
-			char curr_libname[FILE_MAX];
-			int curr_idcode;
-
-			RNA_string_get(&itemptr, "name", relname);
-
-			BLI_join_dirfile(path, sizeof(path), dir, relname);
-
-			if (BLO_library_path_explode(path, curr_libname, &group, &name)) {
-				if (!group || !name) {
-					continue;
-				}
-
-				curr_idcode = BKE_idcode_from_name(group);
-
-				if ((idcode == curr_idcode) && (BLI_path_cmp(curr_libname, libname) == 0)) {
-					BLO_library_append_named_part_ex(C, mainl, &bh, name, idcode, flag);
-				}
-				else {
-					BLI_join_dirfile(path, sizeof(path), curr_libname, group);
-					if (!BLI_gset_haskey(todo_libraries, path)) {
-						BLI_gset_insert(todo_libraries, BLI_strdup(path));
-					}
-				}
-			}
+			RNA_string_get(&itemptr, "name", name);
+			BLO_library_append_named_part_ex(C, mainl, &bh, name, idcode, flag);
 		}
 		RNA_END;
 	}
@@ -2732,72 +2702,6 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		BKE_library_make_local(bmain, lib, true);
 	}
 
-	BLO_blendhandle_close(bh);
-
-	if (todo_libraries) {
-		GSetIterator libs_it;
-
-		GSET_ITER(libs_it, todo_libraries) {
-			char *libpath = (char *)BLI_gsetIterator_getKey(&libs_it);
-
-			BLO_library_path_explode(libpath, libname, &group, NULL);
-			BLI_assert(group);
-			idcode = BKE_idcode_from_name(group);
-
-			bh = BLO_blendhandle_from_file(libname, op->reports);
-
-			if (bh == NULL) {
-				/* unlikely since we just browsed it, but possible
-				 * error reports will have been made by BLO_blendhandle_from_file() */
-				continue;
-			}
-
-			/* here appending/linking starts */
-			mainl = BLO_library_append_begin(bmain, &bh, libname);
-			lib = mainl->curlib;
-			BLI_assert(lib);
-
-			RNA_BEGIN (op->ptr, itemptr, "files")
-			{
-				char curr_libname[FILE_MAX];
-				int curr_idcode;
-
-				RNA_string_get(&itemptr, "name", relname);
-
-				BLI_join_dirfile(path, sizeof(path), dir, relname);
-
-				if (BLO_library_path_explode(path, curr_libname, &group, &name)) {
-					if (!group || !name) {
-						continue;
-					}
-
-					curr_idcode = BKE_idcode_from_name(group);
-
-					if ((idcode == curr_idcode) && (BLI_path_cmp(curr_libname, libname) == 0)) {
-						BLO_library_append_named_part_ex(C, mainl, &bh, name, idcode, flag);
-					}
-				}
-			}
-			RNA_END;
-
-			BLO_library_append_end(C, mainl, &bh, idcode, flag);
-
-			/* mark all library linked objects to be updated */
-			BKE_main_lib_objects_recalc_all(bmain);
-			IMB_colormanagement_check_file_config(bmain);
-
-			/* append, rather than linking */
-			if ((flag & FILE_LINK) == 0) {
-				BLI_assert(BLI_findindex(&bmain->library, lib) != -1);
-				BKE_library_make_local(bmain, lib, true);
-			}
-
-			BLO_blendhandle_close(bh);
-		}
-
-		BLI_gset_free(todo_libraries, MEM_freeN);
-	}
-
 	/* important we unset, otherwise these object wont
 	 * link into other scenes from this blend file */
 	BKE_main_id_flag_all(bmain, LIB_PRE_EXISTING, false);
@@ -2807,6 +2711,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 	
 	/* free gpu materials, some materials depend on existing objects, such as lamps so freeing correctly refreshes */
 	GPU_materials_free();
+	BLO_blendhandle_close(bh);
 
 	/* XXX TODO: align G.lib with other directory storage (like last opened image etc...) */
 	BLI_strncpy(G.lib, dir, FILE_MAX);
@@ -2849,7 +2754,7 @@ static void WM_OT_link(wmOperatorType *ot)
 	ot->flag |= OPTYPE_UNDO;
 
 	WM_operator_properties_filesel(
-	        ot, FILE_TYPE_FOLDER | FILE_TYPE_BLENDER | FILE_TYPE_BLENDERLIB, FILE_LOADLIB, FILE_OPENFILE,
+	        ot, FILE_TYPE_FOLDER | FILE_TYPE_BLENDER, FILE_LOADLIB, FILE_OPENFILE,
 	        WM_FILESEL_FILEPATH | WM_FILESEL_DIRECTORY | WM_FILESEL_FILENAME | WM_FILESEL_RELPATH | WM_FILESEL_FILES,
 	        FILE_DEFAULTDISPLAY);
 	
@@ -2869,7 +2774,7 @@ static void WM_OT_append(wmOperatorType *ot)
 	ot->flag |= OPTYPE_UNDO;
 
 	WM_operator_properties_filesel(
-		ot, FILE_TYPE_FOLDER | FILE_TYPE_BLENDER | FILE_TYPE_BLENDERLIB, FILE_LOADLIB, FILE_OPENFILE,
+		ot, FILE_TYPE_FOLDER | FILE_TYPE_BLENDER, FILE_LOADLIB, FILE_OPENFILE,
 		WM_FILESEL_FILEPATH | WM_FILESEL_DIRECTORY | WM_FILESEL_FILENAME | WM_FILESEL_FILES,
 		FILE_DEFAULTDISPLAY);
 
@@ -4928,72 +4833,6 @@ static void WM_OT_previews_ensure(wmOperatorType *ot)
 	ot->exec = previews_ensure_exec;
 }
 
-/* *************************** Datablocks previews clear ************* */
-
-/* Only types supporting previews currently. */
-static EnumPropertyItem preview_id_type_items[] = {
-    {FILTER_ID_SCE, "SCENE", 0, "Scenes", ""},
-    {FILTER_ID_GR, "GROUP", 0, "Groups", ""},
-	{FILTER_ID_OB, "OBJECT", 0, "Objects", ""},
-    {FILTER_ID_MA, "MATERIAL", 0, "Materials", ""},
-    {FILTER_ID_LA, "LAMP", 0, "Lamps", ""},
-    {FILTER_ID_WO, "WORLD", 0, "Worlds", ""},
-    {FILTER_ID_TE, "TEXTURE", 0, "Textures", ""},
-    {FILTER_ID_IM, "IMAGE", 0, "Images", ""},
-#if 0  /* XXX TODO */
-    {FILTER_ID_BR, "BRUSH", 0, "Brushes", ""},
-#endif
-    {0, NULL, 0, NULL, NULL}
-};
-
-static int previews_clear_exec(bContext *C, wmOperator *op)
-{
-	Main *bmain = CTX_data_main(C);
-	ListBase *lb[] = {&bmain->object, &bmain->group,
-	                  &bmain->mat, &bmain->world, &bmain->lamp, &bmain->tex, &bmain->image, NULL};
-	int i;
-
-	const int id_filters = RNA_enum_get(op->ptr, "id_type");
-
-	for (i = 0; lb[i]; i++) {
-		ID *id = lb[i]->first;
-
-		if (!id) continue;
-
-//		printf("%s: %d, %d, %d -> %d\n", id->name, GS(id->name), BKE_idcode_to_idfilter(GS(id->name)),
-//		                                 id_filters, BKE_idcode_to_idfilter(GS(id->name)) & id_filters);
-
-		if (!id || !(BKE_idcode_to_idfilter(GS(id->name)) & id_filters)) {
-			continue;
-		}
-
-		for (; id; id = id->next) {
-			PreviewImage *prv_img = BKE_previewimg_id_ensure(id);
-
-			BKE_previewimg_clear(prv_img);
-		}
-	}
-
-	return OPERATOR_FINISHED;
-}
-
-static void WM_OT_previews_clear(wmOperatorType *ot)
-{
-	ot->name = "Clear DataBlock Previews";
-	ot->idname = "WM_OT_previews_clear";
-	ot->description = "Clear datablock previews (only for some types like objects, materials, textures, etc.)";
-
-	ot->exec = previews_clear_exec;
-	ot->invoke = WM_menu_invoke;
-
-	ot->prop = RNA_def_enum_flag(ot->srna, "id_type", preview_id_type_items,
-	                             FILTER_ID_SCE | FILTER_ID_OB | FILTER_ID_GR |
-		                         FILTER_ID_MA | FILTER_ID_LA | FILTER_ID_WO | FILTER_ID_TE | FILTER_ID_IM,
-	                             "DataBlock Type", "Which datablock previews to clear");
-}
-
-/* *************************** Doc from UI ************* */
-
 static int doc_view_manual_ui_context_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	PointerRNA ptr_props;
@@ -5122,7 +4961,6 @@ void wm_operatortype_init(void)
 	WM_operatortype_append(WM_OT_console_toggle);
 #endif
 	WM_operatortype_append(WM_OT_previews_ensure);
-	WM_operatortype_append(WM_OT_previews_clear);
 	WM_operatortype_append(WM_OT_doc_view_manual_ui_context);
 }
 
