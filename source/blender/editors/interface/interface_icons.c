@@ -757,7 +757,7 @@ static void init_iconfile_list(struct ListBase *list)
 		}
 	}
 
-	BLI_filelist_free(dir, totfile, NULL);
+	BLI_filelist_free(dir, totfile);
 	dir = NULL;
 }
 
@@ -902,7 +902,7 @@ void UI_icons_init(int first_dyn_id)
 
 /* Render size for preview images and icons
  */
-static int preview_render_size(enum eIconSizes size)
+int UI_preview_render_size(enum eIconSizes size)
 {
 	switch (size) {
 		case ICON_SIZE_ICON:
@@ -918,7 +918,7 @@ static int preview_render_size(enum eIconSizes size)
  */
 static void icon_create_rect(struct PreviewImage *prv_img, enum eIconSizes size)
 {
-	unsigned int render_size = preview_render_size(size);
+	unsigned int render_size = UI_preview_render_size(size);
 
 	if (!prv_img) {
 		if (G.debug & G_DEBUG)
