@@ -87,6 +87,11 @@ public:
 	void StopGameEngine();
 	void EngineNextFrame();
 
+	void setMultiMonitorSpan(bool multiMonitorSpan)
+	{
+		m_multiMonitorSpan = multiMonitorSpan;
+	}
+
 protected:
 	bool	handleWheel(GHOST_IEvent* event);
 	bool	handleButton(GHOST_IEvent* event, bool isDown);
@@ -170,4 +175,6 @@ protected:
 	/* argc and argv need to be passed on to python */
 	int		m_argc;
 	char**	m_argv;
+
+	bool m_multiMonitorSpan;
 };

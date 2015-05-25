@@ -33,6 +33,7 @@
 
 #include <iostream>
 #include <math.h>
+#include <cstdlib>
 
 #ifdef __linux__
 #ifdef __alpha__
@@ -403,6 +404,7 @@ int main(int argc, char** argv)
 	bool error = false;
 	SYS_SystemHandle syshandle = SYS_GetSystem();
 	bool fullScreen = false;
+	bool multiMonitorSpan = false;
 	bool fullScreenParFound = false;
 	bool windowParFound = false;
 #ifdef WIN32
@@ -807,6 +809,12 @@ int main(int argc, char** argv)
 		}
 	}
 
+	const char *const multiMonitorEnv = std::getenv("GHOST_MULTI_MONITOR_SPAN");
+	if (multiMonitorEnv && fullScreen)
+	{
+		multiMonitorSpan = atoi(multiMonitorEnv);
+	}
+
 	if ((windowWidth < kMinWindowWidth) || (windowHeight < kMinWindowHeight))
 	{
 		error = true;
@@ -846,6 +854,8 @@ int main(int argc, char** argv)
 				char filename[FILE_MAX];
 				char pathname[FILE_MAX];
 				char *titlename;
+
+				app.setMultiMonitorSpan(multiMonitorSpan);
 
 				get_filename(argc_py_clamped, argv, filename);
 				if (filename[0])

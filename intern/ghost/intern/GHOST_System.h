@@ -140,12 +140,15 @@ public:
 	 * \param setting	The new setting of the display.
 	 * \param window	Window displayed in full screen.
 	 * \param stereoVisual	Stereo visual for quad buffered stereo.
+	 * \param multiMonitorSpan Indicates if monitors should span when
+	 *		using a multi monitor system.
 	 * This window is invalid after full screen has been ended.
 	 * \return	Indication of success.
 	 */
 	GHOST_TSuccess beginFullScreen(const GHOST_DisplaySetting& setting, GHOST_IWindow **window,
-	                                       const bool stereoVisual, const GHOST_TUns16 numOfAASamples = 0);
-		
+                                       const bool stereoVisual, const GHOST_TUns16 numOfAASamples=0,
+                                       const bool multiMonitorSpan=false);
+
 	/**
 	 * Updates the resolution while in fullscreen mode.
 	 * \param setting	The new setting of the display.
@@ -327,7 +330,8 @@ protected:
 	 * \return Indication of success.
 	 */
 	GHOST_TSuccess createFullScreenWindow(GHOST_Window **window, const GHOST_DisplaySetting &settings,
-	                                              const bool stereoVisual, const GHOST_TUns16 numOfAASamples = 0);
+                        			const bool stereoVisual, const GHOST_TUns16 numOfAASamples=0,
+                        			const bool multiMonitorSpan=false);
 
 	/** The display manager (platform dependent). */
 	GHOST_DisplayManager *m_displayManager;

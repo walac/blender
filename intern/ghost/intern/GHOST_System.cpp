@@ -140,7 +140,8 @@ bool GHOST_System::validWindow(GHOST_IWindow *window)
 
 
 GHOST_TSuccess GHOST_System::beginFullScreen(const GHOST_DisplaySetting& setting, GHOST_IWindow **window,
-                                             const bool stereoVisual, const GHOST_TUns16 numOfAASamples)
+                                             const bool stereoVisual,
+                                             const GHOST_TUns16 numOfAASamples, const bool multiMonitorSpan)
 {
 	GHOST_TSuccess success = GHOST_kFailure;
 	GHOST_ASSERT(m_windowManager, "GHOST_System::beginFullScreen(): invalid window manager");
@@ -152,7 +153,7 @@ GHOST_TSuccess GHOST_System::beginFullScreen(const GHOST_DisplaySetting& setting
 			success = m_displayManager->setCurrentDisplaySetting(GHOST_DisplayManager::kMainDisplay, setting);
 			if (success == GHOST_kSuccess) {
 				//GHOST_PRINT("GHOST_System::beginFullScreen(): creating full-screen window\n");
-				success = createFullScreenWindow((GHOST_Window **)window, setting, stereoVisual, numOfAASamples);
+				success = createFullScreenWindow((GHOST_Window **)window, setting, stereoVisual, numOfAASamples, multiMonitorSpan);
 				if (success == GHOST_kSuccess) {
 					m_windowManager->beginFullScreen(*window, stereoVisual);
 				}
@@ -348,7 +349,8 @@ GHOST_TSuccess GHOST_System::exit()
 }
 
 GHOST_TSuccess GHOST_System::createFullScreenWindow(GHOST_Window **window, const GHOST_DisplaySetting &settings,
-                                                    const bool stereoVisual, const GHOST_TUns16 numOfAASamples)
+                                                    const bool stereoVisual, const GHOST_TUns16 numOfAASamples,
+                                                    const bool multiMonitorSpan)
 {
 	GHOST_GLSettings glSettings = {0};
 
@@ -360,10 +362,15 @@ GHOST_TSuccess GHOST_System::createFullScreenWindow(GHOST_Window **window, const
 	 * be zoomed in and the desktop may be bigger then the viewport. */
 	GHOST_ASSERT(m_displayManager, "GHOST_System::createFullScreenWindow(): invalid display manager");
 	//GHOST_PRINT("GHOST_System::createFullScreenWindow(): creating full-screen window\n");
+
+	const GHOST_TWindowState state = multiMonitorSpan ?
+			GHOST_kWindowStateMultiMonitorSpan :
+			GHOST_kWindowStateFullScreen;
+
 	*window = (GHOST_Window *)createWindow(
 	    STR_String(""),
 	    0, 0, settings.xPixels, settings.yPixels,
-	    GHOST_kWindowStateNormal,
+	    state,
 	    GHOST_kDrawingContextTypeOpenGL,
 	    glSettings,
 	    true  /* exclusive */);

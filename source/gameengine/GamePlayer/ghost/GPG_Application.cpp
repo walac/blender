@@ -409,7 +409,7 @@ bool GPG_Application::startFullScreen(
 	setting.bpp = bpp;
 	setting.frequency = frequency;
 
-	fSystem->beginFullScreen(setting, &m_mainWindow, stereoVisual, samples);
+	fSystem->beginFullScreen(setting, &m_mainWindow, stereoVisual, samples, m_multiMonitorSpan);
 	m_mainWindow->setCursorVisibility(false);
 	/* note that X11 ignores this (it uses a window internally for fullscreen) */
 	m_mainWindow->setState(GHOST_kWindowStateFullScreen);

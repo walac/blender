@@ -32,6 +32,11 @@
 
 #include <assert.h>
 
+namespace {
+	const int FLAGS_WINDOW = SDL_WINDOW_RESIZABLE|SDL_WINDOW_OPENGL|SDL_WINDOW_SHOWN;
+	const int FLAGS_FULLSCREEN = SDL_WINDOW_BORDERLESS|SDL_WINDOW_FULLSCREEN|SDL_WINDOW_OPENGL;
+}
+
 GHOST_WindowSDL::GHOST_WindowSDL(GHOST_SystemSDL *system,
                                  const STR_String& title,
                                  GHOST_TInt32 left,
@@ -51,13 +56,19 @@ GHOST_WindowSDL::GHOST_WindowSDL(GHOST_SystemSDL *system,
       m_invalid_window(false),
       m_sdl_custom_cursor(NULL)
 {
+    int flags;
+
+    if (GHOST_kWindowStateMultiMonitorSpan == state)
+        flags = FLAGS_FULLSCREEN;
+    else
+        flags = FLAGS_WINDOW;
 
 	/* creating the window _must_ come after setting attributes */
 	m_sdl_win = SDL_CreateWindow(
 	        title,
 	        left, top,
 	        width, height,
-	        SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+	        flags);
 
 	/* now set up the rendering context. */
 	if (setDrawingContextType(type) == GHOST_kSuccess) {
